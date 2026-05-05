@@ -155,6 +155,7 @@ export default function App() {
   const [notifStatus,   setNotifStatus]   = useState(null);
   const [dispensing,    setDispensing]    = useState(false);
   const [deviceOnline,  setDeviceOnline]  = useState(true);
+  const [processing,    setProcessing]    = useState(null); // 'reset' or 'capacity'
   const clientRef    = useRef(null);
   const lastCountRef = useRef(0);
   const lastSeenRef  = useRef(Date.now());
@@ -268,22 +269,26 @@ Cover: current status, refill prediction, usage insight. Max 15 words per bullet
 
   const publish = (payload) => {
     if (!clientRef.current?.connected) { addLog("Not connected to broker", C.red); return; }
-    clientRef.current.publish(TOPIC_COMMAND, JSON.stringify(payload));
+    clientRef.current.publish(TOPIC_COMMAND, JSON.stringify(payload), { qos: 1 });
   };
 
   const resetCounter = () => {
+    setProcessing("reset");
     publish({ command:"reset" });
     alertSentRef.current = false;
     setEmailSent(false);
     setNotifStatus(null);
-    addLog("Reset command sent — container refilled ✓", C.purple);
+    addLog("Reset command sent — waiting for device update...", C.purple);
+    setTimeout(() => setProcessing(null), 2000);
   };
 
   const updateCapacity = () => {
     const cap = parseInt(capacityInput);
     if (!cap || cap < 1) { addLog("Invalid capacity value", C.red); return; }
+    setProcessing("capacity");
     publish({ capacity:cap });
-    addLog(`Capacity updated to ${cap} pumps`, C.purple);
+    addLog(`Capacity update sent (${cap}) — waiting for device...`, C.purple);
+    setTimeout(() => setProcessing(null), 2000);
   };
 
   const pct = state.capacity > 0 ? Math.round((state.remaining / state.capacity) * 100) : 0;
@@ -429,11 +434,13 @@ Cover: current status, refill prediction, usage insight. Max 15 words per bullet
                     }}
                   />
                 </div>
-                <button className="btn" onClick={updateCapacity} style={{ padding:"12px 16px", borderRadius:10, border:"none", background:`linear-gradient(135deg,${C.accent},#0099bb)`, color:"#000", fontFamily:"'Syne',sans-serif", fontSize:13, fontWeight:700, cursor:"pointer", transition:"all 0.2s" }}>
-                  💾 Update Capacity
+                <button className="btn" onClick={updateCapacity} disabled={processing==="capacity"} style={{ padding:"12px 16px", borderRadius:10, border:"none", background:processing==="capacity" ? C.border : `linear-gradient(135deg,${C.accent},#0099bb)`, color:processing==="capacity" ? C.muted : "#000", fontFamily:"'Syne',sans-serif", fontSize:13, fontWeight:700, cursor:processing==="capacity" ? "not-allowed" : "pointer", transition:"all 0.2s", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+                  {processing === "capacity" && <div style={{ width:12, height:12, border:`2px solid ${C.muted}`, borderTopColor:"transparent", borderRadius:"50%", animation:"spin 0.8s linear infinite" }}/>}
+                  {processing === "capacity" ? "Updating..." : "💾 Update Capacity"}
                 </button>
-                <button className="btn" onClick={resetCounter} style={{ padding:"12px 16px", borderRadius:10, border:"none", background:`linear-gradient(135deg,${C.purple},#5b21b6)`, color:"#fff", fontFamily:"'Syne',sans-serif", fontSize:13, fontWeight:700, cursor:"pointer", transition:"all 0.2s" }}>
-                  🔄 Reset After Refill
+                <button className="btn" onClick={resetCounter} disabled={processing==="reset"} style={{ padding:"12px 16px", borderRadius:10, border:"none", background:processing==="reset" ? C.border : `linear-gradient(135deg,${C.purple},#5b21b6)`, color:processing==="reset" ? C.muted : "#fff", fontFamily:"'Syne',sans-serif", fontSize:13, fontWeight:700, cursor:processing==="reset" ? "not-allowed" : "pointer", transition:"all 0.2s", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+                  {processing === "reset" && <div style={{ width:12, height:12, border:`2px solid ${C.muted}`, borderTopColor:"transparent", borderRadius:"50%", animation:"spin 0.8s linear infinite" }}/>}
+                  {processing === "reset" ? "Resetting..." : "🔄 Reset After Refill"}
                 </button>
 
                 {/* Email status box */}
