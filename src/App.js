@@ -159,6 +159,7 @@ export default function App() {
   const lastCountRef = useRef(0);
   const lastSeenRef  = useRef(Date.now());
   const alertSentRef = useRef(false);
+  const inputFocusedRef = useRef(false);
 
   const addLog = useCallback((msg, color = C.muted) => {
     const time = new Date().toTimeString().substr(0, 8);
@@ -207,7 +208,11 @@ Cover: current status, refill prediction, usage insight. Max 15 words per bullet
         const isNew = data.pumpCount > lastCountRef.current;
         lastCountRef.current = data.pumpCount;
         setState(data);
-        setCapacityInput(data.capacity);
+
+        // Only update input if user isn't currently typing/focusing on it
+        if (!inputFocusedRef.current) {
+          setCapacityInput(data.capacity);
+        }
         setDeviceOnline(true);
         lastSeenRef.current = Date.now();
 
@@ -414,8 +419,14 @@ Cover: current status, refill prediction, usage insight. Max 15 words per bullet
                   <div style={{ fontSize:10, letterSpacing:1.5, textTransform:"uppercase", color:C.muted, fontFamily:"'Space Mono',monospace", marginBottom:6 }}>Container Capacity (pumps)</div>
                   <input type="number" value={capacityInput} onChange={e => setCapacityInput(e.target.value)}
                     style={{ width:"100%", background:C.surface2, border:`1px solid ${C.border}`, borderRadius:8, padding:"10px 14px", color:C.text, fontFamily:"'Space Mono',monospace", fontSize:14, outline:"none", transition:"border-color 0.2s" }}
-                    onFocus={e => e.target.style.borderColor = C.accent}
-                    onBlur={e  => e.target.style.borderColor = C.border}
+                    onFocus={e => {
+                      e.target.style.borderColor = C.accent;
+                      inputFocusedRef.current = true;
+                    }}
+                    onBlur={e  => {
+                      e.target.style.borderColor = C.border;
+                      inputFocusedRef.current = false;
+                    }}
                   />
                 </div>
                 <button className="btn" onClick={updateCapacity} style={{ padding:"12px 16px", borderRadius:10, border:"none", background:`linear-gradient(135deg,${C.accent},#0099bb)`, color:"#000", fontFamily:"'Syne',sans-serif", fontSize:13, fontWeight:700, cursor:"pointer", transition:"all 0.2s" }}>
