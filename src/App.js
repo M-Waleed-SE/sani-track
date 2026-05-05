@@ -210,10 +210,8 @@ Cover: current status, refill prediction, usage insight. Max 15 words per bullet
         lastCountRef.current = data.pumpCount;
         setState(data);
 
-        // Only update input if user isn't currently typing/focusing on it
-        if (!inputFocusedRef.current) {
-          setCapacityInput(data.capacity);
-        }
+        // Remove auto-syncing of the input to prevent overwrites
+        // The user can see the current capacity in the label above the input
         setDeviceOnline(true);
         lastSeenRef.current = Date.now();
 
@@ -421,17 +419,14 @@ Cover: current status, refill prediction, usage insight. Max 15 words per bullet
               <div style={{ fontSize:11, letterSpacing:2, textTransform:"uppercase", color:C.muted, fontFamily:"'Space Mono',monospace", marginBottom:18 }}>⚙️ Controls</div>
               <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
                 <div>
-                  <div style={{ fontSize:10, letterSpacing:1.5, textTransform:"uppercase", color:C.muted, fontFamily:"'Space Mono',monospace", marginBottom:6 }}>Container Capacity (pumps)</div>
+                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
+                    <div style={{ fontSize:10, letterSpacing:1.5, textTransform:"uppercase", color:C.muted, fontFamily:"'Space Mono',monospace" }}>New Capacity (pumps)</div>
+                    <div style={{ fontSize:10, color:C.accent, fontFamily:"'Space Mono',monospace" }}>Current: {state.capacity}</div>
+                  </div>
                   <input type="number" value={capacityInput} onChange={e => setCapacityInput(e.target.value)}
-                    style={{ width:"100%", background:C.surface2, border:`1px solid ${C.border}`, borderRadius:8, padding:"10px 14px", color:C.text, fontFamily:"'Space Mono',monospace", fontSize:14, outline:"none", transition:"border-color 0.2s" }}
-                    onFocus={e => {
-                      e.target.style.borderColor = C.accent;
-                      inputFocusedRef.current = true;
-                    }}
-                    onBlur={e  => {
-                      e.target.style.borderColor = C.border;
-                      inputFocusedRef.current = false;
-                    }}
+                    style={{ width:"100%", background:C.surface2, border:`1px solid ${C.border}`, borderRadius:8, padding:"10px 14px", color:C.text, fontFamily:"'Space Mono',monospace", fontSize:14, outline:"none", transition:"border-color 0.2s", marginBottom:12 }}
+                    onFocus={e => e.target.style.borderColor = C.accent}
+                    onBlur={e  => e.target.style.borderColor = C.border}
                   />
                 </div>
                 <button className="btn" onClick={updateCapacity} disabled={processing==="capacity"} style={{ padding:"12px 16px", borderRadius:10, border:"none", background:processing==="capacity" ? C.border : `linear-gradient(135deg,${C.accent},#0099bb)`, color:processing==="capacity" ? C.muted : "#000", fontFamily:"'Syne',sans-serif", fontSize:13, fontWeight:700, cursor:processing==="capacity" ? "not-allowed" : "pointer", transition:"all 0.2s", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
