@@ -201,7 +201,8 @@ export default function App() {
   useEffect(() => {
     const clientId = "dashboard-" + Math.random().toString(16).substr(2, 8);
     const c = mqtt.connect(`wss://${HIVEMQ_HOST}:${HIVEMQ_PORT}/mqtt`, {
-      clientId, username:MQTT_USER, password:MQTT_PASS, clean:true, reconnectPeriod:3000,
+      clientId, username:MQTT_USER, password:MQTT_PASS, clean:true, 
+      reconnectPeriod:5000, connectTimeout:15000,
     });
     clientRef.current = c;
 
@@ -258,16 +259,22 @@ export default function App() {
       } catch(e) { console.error(e); }
     });
 
-    c.on("disconnect", () => { setConnected(false); addLog("Disconnected from broker", C.red); });
-    c.on("error",      () => { setConnected(false); addLog("Connection error", C.red); });
+    c.on("disconnect", () => { 
+      setConnected(false); 
+    });
+    c.on("error", (err) => { 
+      setConnected(false); 
+      // Only log if not already disconnected to avoid spam
+      console.error("MQTT Error:", err);
+    });
 
-    // Heartbeat check every 5 seconds
+    // Lenient heartbeat check every 10 seconds
     const interval = setInterval(() => {
       const secondsSinceLastMessage = (Date.now() - lastSeenRef.current) / 1000;
-      if (secondsSinceLastMessage > 30) {
+      if (secondsSinceLastMessage > 60) { // 60 seconds of silence before warning
         setDeviceOnline(false);
       }
-    }, 5000);
+    }, 10000);
 
     return () => {
       c.end();
