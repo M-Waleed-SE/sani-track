@@ -240,11 +240,11 @@ This project satisfies the following IoT course requirements:
 
 ## 👨‍💻 Author
 
-**Waleed Ahmad**
-IoT Course Project — 2025
+**Muhammad Waleed**
+IoT Course Project — 2026
 
 ---
 
 ## 📄 License
 
-MIT License — feel free to use and modify for your own projects.
+feel free to use and modify for your own projects.
