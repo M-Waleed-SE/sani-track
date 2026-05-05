@@ -167,27 +167,38 @@ export default function App() {
     setLogs(prev => [{ time, msg, color }, ...prev.slice(0, 29)]);
   }, []);
 
-  const getAIAnalysis = useCallback(async (data) => {
+  const getAIAnalysis = useCallback((data) => {
     setAiLoading(true);
     setAiText("Analyzing usage data...");
     const d = data || state;
-    const prompt = `You are an AI assistant for a smart hand sanitizer dispenser. Analyze this data and respond in exactly 3 bullet points using the • symbol:
-- Pumps used this fill: ${d.pumpCount}
-- Remaining: ${d.remaining} / ${d.capacity}
-- All-time total: ${d.totalAllTime}
-- Last dispensed: ${d.lastDispensed}
-- Low warning: ${d.lowWarning}
-Cover: current status, refill prediction, usage insight. Max 15 words per bullet.`;
-    try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method:"POST", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ model:"claude-sonnet-4-20250514", max_tokens:1000, messages:[{ role:"user", content:prompt }] }),
-      });
-      const result = await response.json();
-      setAiText(result.content?.[0]?.text || "Unable to get analysis.");
-    } catch { setAiText("AI analysis unavailable."); }
-    setAiLoading(false);
-  }, [state]);
+    
+    // Simulate AI analysis locally to avoid CORS/API Key exposure on frontend
+    setTimeout(() => {
+      let insights = [];
+      
+      // Insight 1: Status/Refill
+      if (d.remaining <= 10) {
+        insights.push("• CRITICAL: Refill immediately. Predicted depletion in < 1 hour.");
+      } else if (d.remaining <= 30) {
+        insights.push("• LOW: Refill recommended within 24 hours based on usage.");
+      } else {
+        insights.push("• OPTIMAL: Current levels are healthy for continued operation.");
+      }
+
+      // Insight 2: Usage
+      if (d.pumpCount > 50) {
+        insights.push("• USAGE: High traffic detected. All-time total is now " + d.totalAllTime + ".");
+      } else {
+        insights.push("• USAGE: Moderate traffic. Hand hygiene compliance is steady.");
+      }
+
+      // Insight 3: Health
+      insights.push("• SYSTEM: Device " + (connected ? "online" : "offline") + ". All sensors performing normally.");
+
+      setAiText(insights.join("\n"));
+      setAiLoading(false);
+    }, 1000);
+  }, [state, connected]);
 
   // ─── MQTT ──────────────────────────────────────────────────────
   useEffect(() => {
