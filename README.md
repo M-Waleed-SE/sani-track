@@ -12,7 +12,7 @@ An end-to-end IoT system that automatically dispenses hand sanitizer when a hand
 
 ## 📸 Demo
 
-> Live Dashboard → [https://1-WaleedAhmad.github.io/sani-track](https://1-WaleedAhmad.github.io/sani-track)
+> Live Dashboard → [https://1-WaleedAhmad.github.io/sani-track](https://m-waleed-se.github.io/sani-track/)
 
 ---
 
