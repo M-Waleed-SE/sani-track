@@ -156,11 +156,14 @@ export default function App() {
   const [dispensing,    setDispensing]    = useState(false);
   const [deviceOnline,  setDeviceOnline]  = useState(true);
   const [processing,    setProcessing]    = useState(null); // 'reset' or 'capacity'
-  const clientRef    = useRef(null);
-  const lastCountRef = useRef(0);
-  const lastSeenRef  = useRef(Date.now());
-  const alertSentRef = useRef(false);
-  const inputFocusedRef = useRef(false);
+  const clientRef        = useRef(null);
+  const lastCountRef     = useRef(0);
+  const lastSeenRef      = useRef(Date.now());
+  const alertSentRef     = useRef(false);
+  const inputFocusedRef  = useRef(false);
+  const userEditedRef    = useRef(false);   // true once user has manually typed in the box
+  const pendingCapRef    = useRef(null);    // capacity value we sent, waiting for echo
+  const pendingResetRef  = useRef(false);   // true while waiting for reset echo
 
   const addLog = useCallback((msg, color = C.muted) => {
     const time = new Date().toTimeString().substr(0, 8);
@@ -219,8 +222,23 @@ export default function App() {
         lastCountRef.current = data.pumpCount;
         setState(data);
 
-        // Smart-sync: Only update input if user hasn't touched it or it's the very first load
-        if (!inputFocusedRef.current) {
+        // ── Confirm pending capacity update ──────────────────────
+        if (pendingCapRef.current !== null && data.capacity === pendingCapRef.current) {
+          addLog(`✓ Capacity confirmed by device: ${data.capacity} pumps`, C.green);
+          pendingCapRef.current = null;
+          setProcessing(null);
+          userEditedRef.current = false; // unlock input sync
+        }
+
+        // ── Confirm pending reset ────────────────────────────────
+        if (pendingResetRef.current && data.pumpCount === 0) {
+          addLog("✓ Reset confirmed by device — container refilled!", C.green);
+          pendingResetRef.current = false;
+          setProcessing(null);
+        }
+
+        // Only auto-sync the input if user hasn't manually edited it
+        if (!userEditedRef.current) {
           setCapacityInput(data.capacity);
         }
         setDeviceOnline(true);
@@ -288,22 +306,46 @@ export default function App() {
   };
 
   const resetCounter = () => {
+    if (!clientRef.current?.connected) { addLog("Not connected to broker", C.red); return; }
     setProcessing("reset");
-    publish({ command:"reset" });
+    pendingResetRef.current = true;
     alertSentRef.current = false;
     setEmailSent(false);
     setNotifStatus(null);
-    addLog("Reset command sent — waiting for device update...", C.purple);
-    setTimeout(() => setProcessing(null), 2000);
+    clientRef.current.publish(TOPIC_COMMAND, JSON.stringify({ command:"reset" }), { qos: 1 });
+    addLog("Reset command sent — awaiting confirmation from device...", C.purple);
+    // Safety fallback: clear after 8s if device doesn't echo
+    setTimeout(() => {
+      if (pendingResetRef.current) {
+        pendingResetRef.current = false;
+        setProcessing(null);
+        addLog("Reset sent — no confirmation received. Check device connection.", C.yellow);
+      }
+    }, 8000);
   };
 
   const updateCapacity = () => {
     const cap = parseInt(capacityInput);
     if (!cap || cap < 1) { addLog("Invalid capacity value", C.red); return; }
+    if (!clientRef.current?.connected) { addLog("Not connected to broker", C.red); return; }
     setProcessing("capacity");
-    publish({ capacity:cap });
-    addLog(`Capacity update sent (${cap}) — waiting for device...`, C.purple);
-    setTimeout(() => setProcessing(null), 2000);
+    pendingCapRef.current = cap;
+    clientRef.current.publish(TOPIC_COMMAND, JSON.stringify({ capacity: cap }), { qos: 1 });
+    addLog(`Capacity command sent (${cap}) — awaiting confirmation from device...`, C.purple);
+    // Safety fallback: clear after 8s if device doesn't echo
+    setTimeout(() => {
+      if (pendingCapRef.current !== null) {
+        pendingCapRef.current = null;
+        setProcessing(null);
+        addLog("Capacity sent — no confirmation received. Check device connection.", C.yellow);
+      }
+    }, 8000);
+  };
+
+  const cancelCapacityEdit = () => {
+    userEditedRef.current = false;
+    setCapacityInput(state.capacity);
+    inputFocusedRef.current = false;
   };
 
   const pct = state.capacity > 0 ? Math.round((state.remaining / state.capacity) * 100) : 0;
@@ -438,16 +480,25 @@ export default function App() {
                 <div>
                   <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
                     <div style={{ fontSize:10, letterSpacing:1.5, textTransform:"uppercase", color:C.muted, fontFamily:"'Space Mono',monospace" }}>New Capacity (pumps)</div>
-                    <div style={{ fontSize:10, color:C.accent, fontFamily:"'Space Mono',monospace" }}>Current: {state.capacity}</div>
+                    <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                      <div style={{ fontSize:10, color:C.accent, fontFamily:"'Space Mono',monospace" }}>Current: {state.capacity}</div>
+                      {userEditedRef.current && (
+                        <button onClick={cancelCapacityEdit} style={{ fontSize:9, color:C.muted, background:"none", border:`1px solid ${C.border}`, borderRadius:4, padding:"1px 6px", cursor:"pointer", fontFamily:"'Space Mono',monospace" }}>Cancel</button>
+                      )}
+                    </div>
                   </div>
-                  <input type="number" value={capacityInput} onChange={e => setCapacityInput(e.target.value)}
-                    style={{ width:"100%", background:C.surface2, border:`1px solid ${C.border}`, borderRadius:8, padding:"10px 14px", color:C.text, fontFamily:"'Space Mono',monospace", fontSize:14, outline:"none", transition:"border-color 0.2s", marginBottom:12 }}
+                  <input type="number" value={capacityInput}
+                    onChange={e => {
+                      setCapacityInput(e.target.value);
+                      userEditedRef.current = true;
+                    }}
+                    style={{ width:"100%", background:C.surface2, border:`1px solid ${userEditedRef.current ? C.accent : C.border}`, borderRadius:8, padding:"10px 14px", color:C.text, fontFamily:"'Space Mono',monospace", fontSize:14, outline:"none", transition:"border-color 0.2s", marginBottom:12 }}
                     onFocus={e => {
                       e.target.style.borderColor = C.accent;
                       inputFocusedRef.current = true;
                     }}
                     onBlur={e  => {
-                      e.target.style.borderColor = C.border;
+                      e.target.style.borderColor = userEditedRef.current ? C.accent : C.border;
                       inputFocusedRef.current = false;
                     }}
                   />
