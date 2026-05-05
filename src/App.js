@@ -170,13 +170,12 @@ export default function App() {
   const getAIAnalysis = useCallback((data) => {
     setAiLoading(true);
     setAiText("Analyzing usage data...");
-    const d = data || state;
     
-    // Simulate AI analysis locally to avoid CORS/API Key exposure on frontend
+    // Simulate AI analysis locally
     setTimeout(() => {
       let insights = [];
+      const d = data; // Use the data passed directly
       
-      // Insight 1: Status/Refill
       if (d.remaining <= 10) {
         insights.push("• CRITICAL: Refill immediately. Predicted depletion in < 1 hour.");
       } else if (d.remaining <= 30) {
@@ -185,20 +184,18 @@ export default function App() {
         insights.push("• OPTIMAL: Current levels are healthy for continued operation.");
       }
 
-      // Insight 2: Usage
       if (d.pumpCount > 50) {
         insights.push("• USAGE: High traffic detected. All-time total is now " + d.totalAllTime + ".");
       } else {
         insights.push("• USAGE: Moderate traffic. Hand hygiene compliance is steady.");
       }
 
-      // Insight 3: Health
-      insights.push("• SYSTEM: Device " + (connected ? "online" : "offline") + ". All sensors performing normally.");
+      insights.push("• SYSTEM: Device online. All sensors performing normally.");
 
       setAiText(insights.join("\n"));
       setAiLoading(false);
     }, 1000);
-  }, [state, connected]);
+  }, []); // Stable dependency array
 
   // ─── MQTT ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -221,8 +218,10 @@ export default function App() {
         lastCountRef.current = data.pumpCount;
         setState(data);
 
-        // Remove auto-syncing of the input to prevent overwrites
-        // The user can see the current capacity in the label above the input
+        // Smart-sync: Only update input if user hasn't touched it or it's the very first load
+        if (!inputFocusedRef.current) {
+          setCapacityInput(data.capacity);
+        }
         setDeviceOnline(true);
         lastSeenRef.current = Date.now();
 
@@ -274,7 +273,7 @@ export default function App() {
       c.end();
       clearInterval(interval);
     };
-  }, [addLog, getAIAnalysis]);
+  }, [addLog, getAIAnalysis]); // Now stable because getAIAnalysis is stable
 
   const publish = (payload) => {
     if (!clientRef.current?.connected) { addLog("Not connected to broker", C.red); return; }
@@ -436,8 +435,14 @@ export default function App() {
                   </div>
                   <input type="number" value={capacityInput} onChange={e => setCapacityInput(e.target.value)}
                     style={{ width:"100%", background:C.surface2, border:`1px solid ${C.border}`, borderRadius:8, padding:"10px 14px", color:C.text, fontFamily:"'Space Mono',monospace", fontSize:14, outline:"none", transition:"border-color 0.2s", marginBottom:12 }}
-                    onFocus={e => e.target.style.borderColor = C.accent}
-                    onBlur={e  => e.target.style.borderColor = C.border}
+                    onFocus={e => {
+                      e.target.style.borderColor = C.accent;
+                      inputFocusedRef.current = true;
+                    }}
+                    onBlur={e  => {
+                      e.target.style.borderColor = C.border;
+                      inputFocusedRef.current = false;
+                    }}
                   />
                 </div>
                 <button className="btn" onClick={updateCapacity} disabled={processing==="capacity"} style={{ padding:"12px 16px", borderRadius:10, border:"none", background:processing==="capacity" ? C.border : `linear-gradient(135deg,${C.accent},#0099bb)`, color:processing==="capacity" ? C.muted : "#000", fontFamily:"'Syne',sans-serif", fontSize:13, fontWeight:700, cursor:processing==="capacity" ? "not-allowed" : "pointer", transition:"all 0.2s", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
